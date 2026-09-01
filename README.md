@@ -1,91 +1,126 @@
-# ⚡ Smart Payout Routing Engine & Sandbox
+# 💎 Smart Payout Routing Engine (Ruby 3.3+ / Rails Architecture)
 
-Интеллектуальный шлюз маршрутизации выплат и симулятор процессинга платежей корпоративного уровня. Система автоматически распределяет поток выплат между платежными провайдерами и банками-эквайерами на основе многофакторного скоринга, правил маршрутизации, контроля лимитов и автоматического каскадирования (Smart Cascading / Fallback).
+[![Ruby](https://img.shields.io/badge/Ruby-3.3%2B-red.svg)](https://www.ruby-lang.org/)
+[![RSpec](https://img.shields.io/badge/Tests-RSpec%203.13-green.svg)](https://rspec.info/)
+[![Sidekiq](https://img.shields.io/badge/Queue-Sidekiq%207.2-blue.svg)](https://sidekiq.org/)
+[![License](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
 
----
+Высоконагруженный интеллектуальный движок маршрутизации выплат (**Smart Payout Router**) на **Ruby 3.3+**, спроектированный по стандартам Fintech-инфраструктуры (PCI-DSS / 115-ФЗ / AML KYT / OFAC).
 
-## 📋 Основные возможности
-
-1. **4-х ступенчатый пайплайн маршрутизации**:
-   - **Фильтрация (Hard Filtering)**: Проверка валюты, страны, метода выплаты, минимальной/максимальной суммы и доступного суточного лимита провайдера.
-   - **Многофакторный скоринг (Weighted Scoring)**: Динамический расчет ранга на основе комиссии (`feeWeight`), процента успешности (`successRateWeight`), задержки отклика (`latencyWeight`) и свободного лимита (`capacityWeight`).
-   - **Каскадное исполнение (Smart Fallback)**: При сбое основного шлюза (HTTP 5xx, Network Timeout, Reject) запрос автоматически передается следующему кандидату в очереди без прерывания транзакции.
-   - **Периодический мониторинг (Health Check Probes)**: Автоматический фоновый опрос шлюзов в реальном времени с фиксацией latency, кодов ответа и переводом в статус `degraded`/`disabled` при сбоях.
-
-2. **Модули надежности и финтех-безопасности**:
-   - **Circuit Breaker & Flapping Guard**: Автоматическое размыкание цепи при 3 последовательных сбоях (`OPEN`) и безопасный пробный прогрев (`HALF_OPEN`).
-   - **AML, Fraud & Velocity Risk Engine**: Детекция частотных атак на одну карту/кошелек за 60 секунд, проверка порогов финансового мониторинга (>600k RUB / $10k), детекция micro-dust атак и определение БИН карт МИР/Visa/Mastercard.
-   - **Точная криптоарифметика**: Расчет микрокомиссий с точностью до 8 знаков (Satoshi / USDT) без ошибок округления IEEE 754.
-   - **Tiered Volume Rebates**: Автоматический пересчет комиссии на основе накопленного месячного оборота шлюза.
-   - **Atomic Concurrency & Headroom Protection**: Защита от овердрафта и превышения суточных лимитов при одновременной пачке транзакций.
-   - **Матрица приоритетов правил**: Детерминированное разрешение конфликтов взаимоисключающих правил маршрутизации.
-
-3. **Интерактивная тестовая лаборатория & Fuzzing**:
-   - 36 специализированных автоматических тест-кейсов по 10 направлениям.
-   - Стресс-генератор (Fuzzing) на 50, 100, 250 или 500 одновременных случайных транзакций с мгновенной аналитикой успешности и экономии на комиссиях.
+Обеспечивает выбор оптимального платёжного шлюза на основе многофакторного скоринга (TOPSIS/AHP), автоматический каскадный переход (Fallback) при сбоях (HTTP 504 Timeout, Insufficient Funds) и защиту от каскадных аварий через паттерн **Circuit Breaker**.
 
 ---
 
-## 🏗 Архитектура проекта
+## 🏗️ Архитектура системы (Ruby)
 
-```text
-├── src/
-│   ├── components/               # UI-компоненты
-│   │   ├── DashboardView.tsx     # Общий мониторинг и метрики шлюзов
-│   │   ├── SimulationView.tsx    # Интерактивный симулятор одиночных выплат и каскада
-│   │   ├── ProvidersView.tsx     # Управление провайдерами, лимитами и комиссиями
-│   │   ├── RoutingRulesView.tsx  # Конструктор правил и условий маршрутизации
-│   │   ├── TransactionsView.tsx  # Журнал транзакций, аудит-логи и таймлайны
-│   │   ├── HealthMonitorView.tsx # Реальный статус шлюзов, пинги и Circuit Breaker
-│   │   └── TestSuiteView.tsx     # Лаборатория 36 тестов и Fuzzing-генератор
+```
+├── app/
+│   ├── controllers/
+│   │   └── api/v1/
+│   │       └── payouts_controller.rb     # REST API контроллер выплат
+│   ├── models/
+│   │   ├── payout_transaction.rb         # Модель транзакции и статусов
+│   │   └── routing_rule.rb               # Бизнес-правила (Boost/Force/Exclude)
 │   ├── services/
-│   │   ├── routerEngine.ts       # Ядро маршрутизации, скоринга, AML и каскадирования
-│   │   └── routerEngine.test.ts  # Модульные тесты ядра (Vitest / Jest compatible)
-│   ├── types.ts                  # Интерфейсы TypeScript и структуры данных
-│   ├── App.tsx                   # Корневой компонент и управление состоянием
-│   ├── main.tsx                  # Точка входа React
-│   └── index.css                 # Стили Tailwind CSS
-├── public/                       # Статические ассеты
-├── index.html                    # Главный HTML-документ
-├── metadata.json                 # Метаданные приложения
-├── package.json                  # Зависимости и npm-скрипты
-├── tsconfig.json                 # Конфигурация TypeScript
-└── vite.config.ts                # Конфигурация сборщика Vite
+│   │   ├── payout_router.rb              # Ядро маршрутизации (4-этапный пайплайн)
+│   │   ├── circuit_breaker.rb            # Автомат защиты шлюзов (Closed/Open/Half-Open)
+│   │   ├── risk/
+│   │   │   └── aml_scorer.rb             # Скоринг 115-ФЗ, санкций и крипто-миксеров
+│   │   ├── routing/
+│   │   │   ├── topsis_scorer.rb          # Многокритериальная оптимизация TOPSIS
+│   │   │   ├── adaptive_learning.rb      # Сглаживание задержек EWMA и авто-подстройка весов
+│   │   │   └── batch_processor.rb        # Параллельный батч-процессинг выплат
+│   │   ├── crypto/
+│   │   │   ├── address_validator.rb      # Валидация адресов TRC-20, ERC-20, BTC, Solana
+│   │   │   └── precision_calculator.rb   # 8-значная арифметика без потери точности
+│   │   └── payout_providers/
+│   │       ├── base.rb                   # Базовый абстрактный провайдер (Strategy Pattern)
+│   │       ├── sbp_provider.rb           # Интеграция СБП (Россия)
+│   │       ├── stripe_provider.rb        # Интеграция Stripe Connect (США/ЕС)
+│   │       └── crypto_pay_provider.rb    # Интеграция ончейн-криптовыплат (USDT/BTC)
+│   └── workers/
+│       ├── payout_execution_worker.rb    # Sidekiq-воркер с защитой Redlock от двойных выплат
+│       └── provider_health_check_worker.rb # Периодический мониторинг доступности шлюзов
+├── lib/
+│   └── smart_routing.rb                  # Корневой модуль и версионирование
+├── spec/                                 # Спецификации RSpec
+│   ├── spec_helper.rb
+│   └── services/
+│       ├── payout_router_spec.rb         # Тесты фильтрации, скоринга и каскадов
+│       ├── topsis_scorer_spec.rb         # Тесты многофакторного ранжирования
+│       ├── circuit_breaker_spec.rb       # Тесты автоматов защиты
+│       ├── aml_scorer_spec.rb            # Тесты комплаенс-скоринга
+│       └── crypto_spec.rb                # Тесты ончейн-валидаций
+├── Gemfile                               # Манифест зависимостей Ruby
+├── Rakefile                              # Rake-задачи для сборки и тестов
+└── .gitattributes                        # Конфигурация GitHub Linguist (100% Ruby)
 ```
 
 ---
 
-## 🚀 Запуск и разработка
+## ⚡ Быстрый старт на Ruby
 
-### Требования
-- Node.js 18+
-- npm / yarn / bun
-
-### Установка зависимостей
+### 1. Установка зависимостей
 ```bash
-npm install
+bundle install
 ```
 
-### Запуск локального сервера разработки
+### 2. Запуск тестового сьюта (RSpec)
 ```bash
-npm run dev
-```
-Приложение откроется на `http://localhost:3000`.
-
-### Запуск проверки типов (Lint)
-```bash
-npm run lint
+bundle exec rspec
 ```
 
-### Сборка для продакшена
-```bash
-npm run build
+### 3. Пример использования сервиса роутинга в Ruby-коде
+```ruby
+require_relative 'lib/smart_routing'
+
+# Инициализация доступных провайдеров
+providers = [
+  PayoutProviders::SbpProvider.new,
+  PayoutProviders::StripeProvider.new,
+  PayoutProviders::CryptoPayProvider.new
+]
+
+# Создание экземпляра роутера
+router = PayoutRouter.new(
+  providers: providers,
+  weights: { fee: 0.35, success_rate: 0.30, latency: 0.20, headroom: 0.15 }
+)
+
+# Запрос на выплату
+payout_request = {
+  id: 'payout_1001',
+  idempotency_key: 'uniq_idempotency_token_99',
+  amount: 15_000.0,
+  currency: 'RUB',
+  country: 'RU',
+  method: 'sbp',
+  recipient: {
+    name: 'Иван Петров',
+    account_identifier: '+79991234567'
+  }
+}
+
+# Исполнение маршрутизации с каскадным переходом
+result = router.route_and_execute(payout_request)
+
+if result.success
+  puts "✅ Выплата успешно проведена через #{result.provider.name} (TxID: #{result.transaction_id})"
+else
+  puts "❌ Ошибка проведения выплаты: #{result.error}"
+end
 ```
-Скомпилированные статические файлы будут сохранены в директорию `dist/`.
 
 ---
 
-## 🧪 Тестирование
+## 🛡️ Ключевые возможности алгоритма
 
-- **Модульные тесты ядра**: тесты расположены в файле `src/services/routerEngine.test.ts`.
-- **Интерактивный UI-тест-раннер**: доступен непосредственно в приложении во вкладке **«Тесты & Надежность»** — позволяет запускать все 36 сценариев в один клик с визуальным логом выполнения и проверкой контрактов отказоустойчивости.
+1. **4-х факторная модель скоринга (TOPSIS / AHP)**:
+   $$\text{Score} = w_{\text{fee}} \cdot S_{\text{fee}} + w_{\text{sr}} \cdot S_{\text{sr}} + w_{\text{lat}} \cdot S_{\text{lat}} + w_{\text{cap}} \cdot S_{\text{cap}}$$
+2. **Circuit Breaker (Паттерн автомата защиты)**:
+   Шлюзы со сбоями автоматически изолируются в состояние `OPEN`, не замедляя основной поток, и плавно возвращаются в строй через `HALF_OPEN`.
+3. **AML & KYT Compliance Engine**:
+   - Автоматическая проверка по 115-ФЗ (порог 600,000 ₽ / $10,000).
+   - Определение санкционных адресов и крипто-миксеров (Tornado Cash, Blender).
+4. **Гарантия точности (8 знаков)**:
+   Использование `BigDecimal` для исключения потери точности в сатоши/вей при конвертации валют.

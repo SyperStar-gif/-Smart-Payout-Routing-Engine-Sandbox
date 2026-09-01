@@ -78,10 +78,12 @@ class PayoutRouter
     # Apply Business Rule Overrides (Force / Exclude / Boost)
     active_providers, boost_map, force_set = apply_rules(eligible_providers, request)
 
+    safe_amount = [request[:amount].to_f, 0.0001].max
+
     candidates = active_providers.map do |provider|
       # 1. Normalized Fee Score (0..100, lower fee = higher score)
       fee_amt = provider.calculate_fee(request[:amount])
-      fee_pct = (fee_amt / request[:amount]) * 100.0
+      fee_pct = (fee_amt / safe_amount) * 100.0
       fee_score = [[100.0 - (fee_pct * 15.0), 0.0].max, 100.0].min
 
       # 2. Success Rate Score (0..100)

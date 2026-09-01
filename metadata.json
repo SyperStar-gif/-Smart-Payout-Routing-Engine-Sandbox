@@ -2,5 +2,7 @@
   "name": "Smart Payout Router",
   "description": "Smart payout routing engine with multi-factor scoring, dynamic provider filtering, adaptive learning, and automated cascading fallbacks.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
