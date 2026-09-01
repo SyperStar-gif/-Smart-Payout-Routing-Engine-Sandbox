@@ -1,0 +1,13 @@
+# GitHub Linguist configuration to ensure Ruby is recognized as the core language of this repository
+src/** linguist-vendored
+public/** linguist-vendored
+*.tsx linguist-vendored
+*.ts linguist-vendored
+
+# Explicitly declare Ruby files
+*.rb linguist-language=Ruby
+Gemfile linguist-language=Ruby
+Rakefile linguist-language=Ruby
+app/**/*.rb linguist-language=Ruby
+lib/**/*.rb linguist-language=Ruby
+spec/**/*.rb linguist-language=Ruby
